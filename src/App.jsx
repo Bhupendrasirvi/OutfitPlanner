@@ -16,6 +16,7 @@ import {
   FaCloud,
   FaCloudRain,
   FaSnowflake,
+  FaBolt,
 } from "react-icons/fa";
 import {
   GiClothes,
@@ -23,6 +24,12 @@ import {
   GiNecklace,
   GiLargeDress,
 } from "react-icons/gi";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
+// Initialize Gemini API
+const genAI = new GoogleGenerativeAI(
+  import.meta.env.VITE_REACT_APP_GEMINI_API_KEY
+);
 
 const App = () => {
   // Chatbot states
@@ -78,7 +85,7 @@ const App = () => {
     setIsLoading(true);
 
     try {
-      const botResponse = await mockAICall(inputValue);
+      const botResponse = await getGeminiResponse(inputValue);
 
       setMessages((prev) => [
         ...prev,
@@ -103,30 +110,23 @@ const App = () => {
     }
   };
 
-  const mockAICall = async (query) => {
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+  const getGeminiResponse = async (query) => {
+    try {
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
 
-    const systemPrompt =
-      "You are a professional outfit planner AI. Provide detailed, personalized outfit recommendations based on the user's request. Consider weather, occasion, and personal style. Offer multiple options when possible.";
-    const fullPrompt = `${systemPrompt}\n\nUser: ${query}`;
+      const prompt = `You are a professional outfit planner AI. Provide detailed, personalized outfit recommendations based on the user's request. Consider weather, occasion, and personal style. Offer multiple options when possible. Keep responses concise but informative (3-5 sentences max).
+      
+      User query: ${query}`;
 
-    console.log("Sending to AI:", fullPrompt);
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text();
 
-    if (query.toLowerCase().includes("outfit for")) {
-      if (query.toLowerCase().includes("party")) {
-        return "For a party, here are 3 great options:\n1. Sleek black dress with statement jewelry and heels\n2. Jumpsuit with metallic accessories\n3. Tailored suit with a silk blouse\n\nWhich style do you prefer?";
-      } else if (query.toLowerCase().includes("work")) {
-        return "Professional outfit ideas:\n- Navy blazer with white shirt and gray trousers\n- Pencil skirt with blouse and cardigan\n- Dress pants with a shell top and blazer\n\nWould you like suggestions for accessories too?";
-      }
-    } else if (
-      query.toLowerCase().includes("weather") ||
-      query.toLowerCase().includes("rain") ||
-      query.toLowerCase().includes("cold")
-    ) {
-      return "For the current weather conditions, I recommend:\n- Waterproof jacket or trench coat\n- Layered clothing for temperature changes\n- Comfortable waterproof footwear\n\nWould you like more specific suggestions?";
+      return text;
+    } catch (error) {
+      console.error("Error with Gemini API:", error);
+      return "I'm having trouble generating a response. Please try again later.";
     }
-
-    return "I'd be happy to help plan your outfit! Could you tell me:\n1. The occasion or activity\n2. Your location or weather conditions\n3. Any preferred colors or styles?";
   };
 
   const handleGetWeather = async () => {
@@ -134,20 +134,34 @@ const App = () => {
 
     setIsWeatherLoading(true);
     try {
-      const mockWeather = {
-        city: weatherInput,
-        temp: Math.floor(Math.random() * 30) + 10,
-        condition: ["Sunny", "Cloudy", "Rainy", "Snowy"][
-          Math.floor(Math.random() * 4)
-        ],
-        humidity: Math.floor(Math.random() * 50) + 30,
+      const response = await fetch(
+        `https://api.openweathermap.org/data/2.5/weather?q=${weatherInput}&units=metric&appid=${
+          import.meta.env.VITE_REACT_APP_WEATHER_API_KEY
+        }`
+      );
+
+      if (!response.ok) {
+        throw new Error("Weather data not found");
+      }
+
+      const data = await response.json();
+
+      const weatherInfo = {
+        city: data.name,
+        temp: Math.round(data.main.temp),
+        condition: data.weather[0].main,
+        humidity: data.main.humidity,
+        feelsLike: Math.round(data.main.feels_like),
+        wind: Math.round(data.wind.speed * 3.6), // Convert m/s to km/h
       };
 
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      setWeatherData(mockWeather);
+      setWeatherData(weatherInfo);
     } catch (error) {
       console.error("Error fetching weather:", error);
-      setWeatherData({ error: "Couldn't fetch weather data" });
+      setWeatherData({
+        error:
+          "Couldn't fetch weather data. Please check the city name and try again.",
+      });
     } finally {
       setIsWeatherLoading(false);
     }
@@ -165,6 +179,33 @@ const App = () => {
     const newLikes = [...outfitLikes];
     newLikes[index] = !newLikes[index];
     setOutfitLikes(newLikes);
+  };
+
+  // Weather icon component
+  const WeatherIcon = ({ condition }) => {
+    const conditionLower = condition.toLowerCase();
+
+    if (conditionLower.includes("sun") || conditionLower.includes("clear")) {
+      return <FaSun className="text-yellow-400 text-3xl" />;
+    } else if (conditionLower.includes("cloud")) {
+      return <FaCloud className="text-gray-400 text-3xl" />;
+    } else if (conditionLower.includes("rain")) {
+      return <FaCloudRain className="text-blue-400 text-3xl" />;
+    } else if (conditionLower.includes("snow")) {
+      return <FaSnowflake className="text-blue-200 text-3xl" />;
+    } else if (
+      conditionLower.includes("thunder") ||
+      conditionLower.includes("storm")
+    ) {
+      return <FaBolt className="text-yellow-300 text-3xl" />;
+    } else if (
+      conditionLower.includes("fog") ||
+      conditionLower.includes("mist")
+    ) {
+      return <FaCloud className="text-gray-300 text-3xl" />;
+    } else {
+      return <FaCloudSun className="text-gray-300 text-3xl" />;
+    }
   };
 
   // Outfit items for the boxes
@@ -198,22 +239,6 @@ const App = () => {
       occasion: "Romantic Dinner",
     },
   ];
-
-  // Weather icon component
-  const WeatherIcon = ({ condition }) => {
-    switch (condition) {
-      case "Sunny":
-        return <FaSun className="text-yellow-400 text-3xl" />;
-      case "Cloudy":
-        return <FaCloud className="text-gray-400 text-3xl" />;
-      case "Rainy":
-        return <FaCloudRain className="text-blue-400 text-3xl" />;
-      case "Snowy":
-        return <FaSnowflake className="text-blue-200 text-3xl" />;
-      default:
-        return <FaCloudSun className="text-gray-300 text-3xl" />;
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 pb-24">
@@ -644,7 +669,7 @@ const App = () => {
               {weatherData ? (
                 weatherData.error ? (
                   <p className="text-red-400 m-auto text-center">
-                    Couldn't fetch weather data
+                    {weatherData.error}
                   </p>
                 ) : (
                   <>
@@ -660,6 +685,10 @@ const App = () => {
                       </div>
                       <div className="text-xl text-teal-300">
                         {weatherData.condition}
+                      </div>
+                      <div className="text-sm text-gray-400 mt-2">
+                        Feels like {weatherData.feelsLike}°C • Wind:{" "}
+                        {weatherData.wind} km/h
                       </div>
                     </div>
                     <div className="mt-auto">
