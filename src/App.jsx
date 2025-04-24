@@ -25,6 +25,7 @@ import {
   GiLargeDress,
 } from "react-icons/gi";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import StyleJourney from "./StyleJourney";
 
 // Initialize Gemini API
 const genAI = new GoogleGenerativeAI(
@@ -34,6 +35,7 @@ const genAI = new GoogleGenerativeAI(
 const App = () => {
   // Chatbot states
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [showStyleJourney, setShowStyleJourney] = useState(false);
   const [isWeatherOpen, setIsWeatherOpen] = useState(false);
   const [messages, setMessages] = useState([
     {
@@ -271,7 +273,10 @@ const App = () => {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.8, delay: 0.4 }}
           >
-            <button className="px-8 py-4 bg-gradient-to-r from-purple-600 to-teal-400 rounded-full font-semibold text-lg hover:scale-105 transition-transform">
+            <button
+              onClick={() => setShowStyleJourney(true)}
+              className="px-8 py-4 bg-gradient-to-r from-purple-600 to-teal-400 rounded-full font-semibold text-lg hover:scale-105 transition-transform"
+            >
               Start Your Style Journey
             </button>
             <button className="px-8 py-4 border-2 border-purple-400 text-purple-400 rounded-full font-semibold text-lg hover:scale-105 transition-transform">
@@ -846,6 +851,9 @@ const App = () => {
         )}
       </AnimatePresence>
 
+        {showStyleJourney && (
+          <StyleJourney onClose={() => setShowStyleJourney(false)} />
+        )}
       {/* Floating Action Buttons */}
       <div className="fixed bottom-6 right-6 flex flex-col gap-4 z-40">
         <motion.button
@@ -872,6 +880,7 @@ const App = () => {
           <FaRobot className="text-xl" />
         </motion.button>
       </div>
+
     </div>
   );
 };
